@@ -1,4 +1,4 @@
-use actix::{Actor, ActorContext, Addr, AsyncContext, Handler, Message, StreamHandler, WrapFuture};
+use actix::{Actor, ActorContext, AsyncContext, Handler, Message, StreamHandler, WrapFuture};
 use actix_web_actors::ws;
 use std::sync::Arc;
 use tokio::sync::Mutex;
