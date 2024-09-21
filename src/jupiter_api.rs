@@ -1,10 +1,10 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
-struct TokenPrice {
-    token: String,
-    price: f64,
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TokenPrice {
+    pub token: String,
+    pub price: f64,
 }
 
 pub async fn fetch_token_price(token: &str) -> Result<TokenPrice, reqwest::Error> {
