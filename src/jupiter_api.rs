@@ -1,26 +1,33 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TokenPrice {
-    pub token: String,
+    pub address: String,
     pub price: f64,
 }
 
-pub async fn fetch_token_price(token: &str) -> Result<TokenPrice, reqwest::Error> {
+pub async fn fetch_token_prices(addresses: &[String]) -> Result<Vec<TokenPrice>, reqwest::Error> {
     let client = Client::new();
-    let url = format!("https://price.jup.ag/v4/price?ids={}", token);
+    let url = "https://price.jup.ag/v4/price";
     
-    let response = client.get(&url).send().await?;
+    let query: HashMap<_, _> = [("ids", addresses.join(","))].into_iter().collect();
+    
+    let response = client.get(url).query(&query).send().await?;
     let price_data: serde_json::Value = response.json().await?;
     
-    // Extract the price from the JSON response
-    let price = price_data["data"][token]["price"]
-        .as_f64()
-        .unwrap_or(0.0);
+    let mut prices = Vec::new();
+    if let Some(data) = price_data["data"].as_object() {
+        for (address, price_info) in data {
+            if let Some(price) = price_info["price"].as_f64() {
+                prices.push(TokenPrice {
+                    address: address.to_string(),
+                    price,
+                });
+            }
+        }
+    }
     
-    Ok(TokenPrice {
-        token: token.to_string(),
-        price,
-    })
+    Ok(prices)
 }

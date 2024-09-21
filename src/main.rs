@@ -1,4 +1,4 @@
-use actix_web::{web, App, HttpServer, HttpResponse, Error};
+use actix_web::{web, App, HttpServer, HttpResponse, Error, get};
 use actix_web_actors::ws;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -33,15 +33,19 @@ async fn ws_route(
 // Background task for fetching and broadcasting token prices
 async fn price_update_task(app_state: Arc<Mutex<AppState>>) {
     let mut interval = interval(Duration::from_secs(10));
-    let tokens = vec!["SOL", "ETH", "BTC"]; // Add more tokens as needed
+    let token_addresses = vec![
+        "So11111111111111111111111111111111111111112".to_string(), // SOL
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v".to_string(), // USDC
+        "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB".to_string(), // USDT
+    ];
 
     loop {
         interval.tick().await;
-        for token in &tokens {
-            if let Ok(price) = jupiter_api::fetch_token_price(token).await {
-                let mut state = app_state.lock().await;
-                state.last_fetch.insert(token.to_string(), Utc::now());
-                state.cached_prices.insert(token.to_string(), price.price);
+        if let Ok(prices) = jupiter_api::fetch_token_prices(&token_addresses).await {
+            let mut state = app_state.lock().await;
+            for price in prices {
+                state.last_fetch.insert(price.address.clone(), Utc::now());
+                state.cached_prices.insert(price.address.clone(), price.price);
                 
                 for (_, client) in &state.connected_clients {
                     client.do_send(websocket::PriceUpdate(price.clone()));
@@ -49,6 +53,14 @@ async fn price_update_task(app_state: Arc<Mutex<AppState>>) {
             }
         }
     }
+}
+
+// Simple HTTP endpoint to get current prices
+#[get("/prices")]
+async fn get_prices(app_state: web::Data<Arc<Mutex<AppState>>>) -> HttpResponse {
+    let state = app_state.lock().await;
+    let prices = state.cached_prices.clone();
+    HttpResponse::Ok().json(prices)
 }
 
 #[actix_web::main]
@@ -70,6 +82,7 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(app_state.clone())
+            .service(get_prices)
             .route("/ws", web::get().to(ws_route))
     })
     .bind("127.0.0.1:8080")?

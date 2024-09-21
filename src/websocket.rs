@@ -4,8 +4,6 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use crate::AppState;
 use crate::jupiter_api::TokenPrice;
-use futures::future::Future;
-
 
 pub struct PriceSocket {
     app_state: Arc<Mutex<AppState>>,
@@ -27,17 +25,15 @@ impl Actor for PriceSocket {
         let app_state = self.app_state.clone();
         let client_id = self.client_id.clone();
 
-        // Use Actix's spawn feature to handle the async lock
         ctx.spawn(async move {
             let mut state = app_state.lock().await;
             state.connected_clients.insert(client_id, addr.clone());
             
-            // Send initial cached prices to the client
             let cached_prices = state.cached_prices.clone();
-            drop(state); // Release the lock before the loop
+            drop(state);
 
-            for (token, price) in cached_prices {
-                addr.do_send(PriceUpdate(TokenPrice { token, price }));
+            for (address, price) in cached_prices {
+                addr.do_send(PriceUpdate(TokenPrice { address, price }));
             }
         }.into_actor(self));
     }
@@ -47,7 +43,6 @@ impl Actor for PriceSocket {
         let app_state = self.app_state.clone();
         let client_id = self.client_id.clone();
 
-        // Use Actix's spawn feature to handle the async lock
         ctx.spawn(async move {
             let mut state = app_state.lock().await;
             state.connected_clients.remove(&client_id);
